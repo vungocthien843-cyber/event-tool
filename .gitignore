@@ -1,0 +1,23 @@
+# Environments
+.env
+.env.*
+.venv/
+venv/
+ENV/
+
+# Python compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Packaging
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# AI / IDE
+.claude/
+.gemini/
+.vscode/
+.idea/
