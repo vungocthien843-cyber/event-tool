@@ -16,7 +16,7 @@ spec:
   description: >
     Cổng vào duy nhất cho toàn bộ client bên ngoài (mobile app, web, đối tác
     open banking qua FAPI). Xử lý xác thực, rate-limit tập trung, định tuyến
-    request tới các service nội bộ phía sau. oke rồi
+    request tới các service nội bộ phía sau. Râu hùm hàm én mày ngài, vai năm tấc rộng thân mười thước cao
 
   owners:
     members:
