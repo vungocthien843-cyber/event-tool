@@ -11,6 +11,7 @@ redis_settings = RedisSettings(
     port=parsed.port or 6379,
     database=int(parsed.path.strip('/')) if parsed.path and parsed.path.strip('/') else 0,
     password=parsed.password,
+    ssl=parsed.scheme == 'rediss'
 )
 
 async def startup(ctx):
