@@ -58,6 +58,7 @@ async def github_webhook(request: Request):
         return JSONResponse(status_code=202, content={"status": "no head_commit"})
 
     added_or_modified, removed = _collect_catalog_paths(payload)
+    print(f"Webhook received. Added/Modified: {added_or_modified}, Removed: {removed}")
     repo_full_name = payload.repository.full_name
     commit_sha = payload.head_commit.id
     commit_ts = payload.head_commit.timestamp
@@ -65,19 +66,31 @@ async def github_webhook(request: Request):
     # Synchronous processing for Serverless environment
     async with httpx.AsyncClient(timeout=10.0) as client:
         for file_path in removed:
+            print(f"Removing {file_path} from DB...")
             async with async_session_maker() as session:
                 await process_catalog_removal(session, repo_full_name=repo_full_name, file_path=file_path)
 
         for file_path in added_or_modified:
+            print(f"Fetching {file_path} from GitHub...")
             try:
                 content = await fetch_file_content(client, repo_full_name=repo_full_name, file_path=file_path, ref=commit_sha)
-            except GitHubClientError:
+                print(f"Successfully fetched {len(content)} bytes.")
+            except GitHubClientError as e:
+                print(f"Failed to fetch {file_path}: {e}")
+                continue
+            except Exception as e:
+                print(f"Unexpected error fetching {file_path}: {e}")
                 continue
             
+            print(f"Upserting {file_path} to DB...")
             async with async_session_maker() as session:
-                await process_catalog_upsert(
+                res = await process_catalog_upsert(
                     session, repo_full_name=repo_full_name, file_path=file_path,
                     commit_sha=commit_sha, commit_ts=commit_ts, raw_yaml=content
                 )
+                if res:
+                    print(f"Successfully upserted {res} to DB!")
+                else:
+                    print(f"Skipped DB upsert (Invalid YAML format or stale event)")
 
     return JSONResponse(status_code=200, content={"status": "success"})
