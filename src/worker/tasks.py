@@ -38,14 +38,14 @@ async def job_remove_catalog(ctx, repo_full_name: str, file_path: str):
     async with async_session_maker() as session:
         await process_catalog_removal(session, repo_full_name=repo_full_name, file_path=file_path)
 
-async def job_full_sync(ctx, repo_full_name: str, commit_sha: str, commit_ts: datetime):
+async def job_full_sync(ctx, repo_full_name: str, commit_sha: str, commit_ts: datetime, branch: str):
     client: httpx.AsyncClient = ctx.get("httpx_client")
-    print(f"\n[Worker] 🚀 BẮT ĐẦU FULL SYNC CHO REPO: {repo_full_name}")
+    print(f"\n[Worker] BAT DAU FULL SYNC CHO REPO: {repo_full_name} (branch: {branch})")
     
-    # 1. Lấy cây thư mục từ GitHub (master branch)
-    print("[Worker] Fetching Git Tree...")
+    # 1. Lấy cây thư mục từ GitHub
+    print(f"[Worker] Fetching Git Tree for {branch}...")
     try:
-        git_files = await fetch_repo_tree(client, repo_full_name, "master")
+        git_files = await fetch_repo_tree(client, repo_full_name, branch)
     except Exception as e:
         print(f"[Worker] Failed to fetch git tree: {e}")
         raise Retry(defer=10)
@@ -75,4 +75,4 @@ async def job_full_sync(ctx, repo_full_name: str, commit_sha: str, commit_ts: da
     for file_path in git_files:
         await job_process_catalog(ctx, repo_full_name, file_path, commit_sha, commit_ts)
         
-    print(f"[Worker] ✅ HOÀN THÀNH FULL SYNC CHO REPO: {repo_full_name}\n")
+    print(f"[Worker] HOAN THANH FULL SYNC CHO REPO: {repo_full_name}\n")

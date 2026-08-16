@@ -45,12 +45,13 @@ async def github_webhook(request: Request):
     repo_full_name = payload.repository.full_name
     commit_sha = payload.head_commit.id
     commit_ts = payload.head_commit.timestamp
+    branch = payload.ref.replace("refs/heads/", "")
 
     # Lấy đối tượng kết nối Redis
     redis = request.app.state.redis
 
     # Đẩy tác vụ Full Sync vào hàng đợi (Queue)
-    await redis.enqueue_job("job_full_sync", repo_full_name, commit_sha, commit_ts)
+    await redis.enqueue_job("job_full_sync", repo_full_name, commit_sha, commit_ts, branch)
     print(f"Enqueued job_full_sync for {repo_full_name} at commit {commit_sha}")
 
     # Lập tức trả về 200 OK cho GitHub
