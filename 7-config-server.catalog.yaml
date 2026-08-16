@@ -1,0 +1,37 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# MOCK CHUẨN 9 — Config Server
+# services/config-server/catalog-info.yaml theo master-catalog. Không có
+# port cố định trong master (nội bộ). type: other — cấp phát cấu hình tập
+# trung cho mọi service khi khởi động, không có API surface hướng nghiệp vụ.
+# ═══════════════════════════════════════════════════════════════════════════
+
+specVersion: vsf-idp.io/v2
+
+metadata:
+  domain: Platform Engineering
+  system: online-banking
+  namespace: banking
+
+spec:
+  type: other
+  id: config-server
+  name: Config Server
+  description: >-
+    Spring Cloud Config Server — cấp phát file cấu hình tập trung (application
+    properties theo từng profile/environment) cho mọi service khi khởi động,
+    đọc từ Git repo cấu hình.
+
+  owners:
+    members:
+      - user: v.giangth11@vinsmartfuture.tech
+        role: techlead
+
+  review:
+    branch: "main"
+
+  topology:
+    - ref: system:banking/online-banking
+      reason: Component này thuộc system online-banking
+
+    - ref: resource:platform/config-git-repo
+      reason: Đọc file cấu hình tập trung cho toàn bộ service từ Git repo
