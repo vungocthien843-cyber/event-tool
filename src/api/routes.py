@@ -12,7 +12,8 @@ from src.services.catalog import process_catalog_upsert, process_catalog_removal
 
 router = APIRouter()
 
-CATALOG_FILENAME = "catalog-info.yaml"
+import hashlib
+import hmac
 
 def _verify_signature(secret: str, body: bytes, signature_header: str | None) -> bool:
     if not signature_header or not signature_header.startswith("sha256="):
@@ -25,10 +26,10 @@ def _collect_catalog_paths(payload: GitHubPushPayload) -> tuple[list[str], list[
     upsert_paths: dict[str, bool] = {}
     for commit in payload.commits:
         for path in commit.added + commit.modified:
-            if PurePosixPath(path).name == CATALOG_FILENAME:
+            if path.endswith(".yaml") or path.endswith(".yml"):
                 upsert_paths[path] = True
         for path in commit.removed:
-            if PurePosixPath(path).name == CATALOG_FILENAME:
+            if path.endswith(".yaml") or path.endswith(".yml"):
                 upsert_paths[path] = False
     added_or_modified = [p for p, keep in upsert_paths.items() if keep]
     removed = [p for p, keep in upsert_paths.items() if not keep]

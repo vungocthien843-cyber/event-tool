@@ -45,6 +45,7 @@ async def process_catalog_upsert(
     for dep in parsed.dependencies:
         session.add(ServiceDependency(service_key=parsed.service_key, target_ref=dep.target_ref, ref_kind=dep.ref_kind, protocol=dep.protocol, reason=dep.reason))
 
+    await session.commit()
     return parsed.service_key
 
 async def process_catalog_removal(session: AsyncSession, repo_full_name: str, file_path: str) -> str | None:
@@ -57,4 +58,5 @@ async def process_catalog_removal(session: AsyncSession, repo_full_name: str, fi
 
     service_key = existing.service_key
     await session.delete(existing)
+    await session.commit()
     return service_key
