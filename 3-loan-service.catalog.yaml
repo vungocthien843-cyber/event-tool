@@ -1,0 +1,51 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# MOCK CHUẨN 5 — Loan Service
+# services/loan/catalog-info.yaml theo master-catalog. Port 10060, /api/v1/loans.
+# ═══════════════════════════════════════════════════════════════════════════
+
+specVersion: vsf-idp.io/v2
+
+metadata:
+  domain: Online Banking
+  system: online-banking
+  namespace: banking
+
+spec:
+  type: service
+  id: loan-service
+  name: Loan Service
+  description: >-
+    Xử lý hồ sơ vay — nộp đơn, thẩm định, phê duyệt, giải ngân. Xác thực
+    token qua Auth Service trước khi cho phép thao tác trên hồ sơ vay.
+
+  owners:
+    members:
+      - user: v.tuananh9@vinsmartfuture.tech
+        role: techlead
+      - user: v.ngocld5@vinsmartfuture.tech
+        role: maintainer
+
+  review:
+    branch: "main"
+
+  topology:
+    - ref: system:banking/online-banking
+      reason: Component này thuộc system online-banking
+
+    - ref: providesApis:banking/loan-service
+      protocol: REST
+      reason: Expose endpoint /api/v1/loans (port 10060)
+
+    - ref: consumesApis:banking/auth-service
+      protocol: REST
+      reason: Xác thực token trước khi cho phép thao tác hồ sơ vay
+
+    - ref: resource:banking/postgres
+      reason: Lưu hồ sơ vay, trạng thái thẩm định và lịch sử phê duyệt
+
+    - ref: resource:platform/kafka
+      reason: Message broker dùng chung toàn platform
+
+    - ref: publishesTo:banking/loan-events
+      protocol: Kafka
+      reason: Phát sự kiện loan_approved, loan_disbursed cho notification-service
