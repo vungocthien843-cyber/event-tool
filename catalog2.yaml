@@ -29,7 +29,7 @@ spec:
   name: IAM Gateway                  # require -> service.name
 
   # description — mô tả ngắn, hiển thị trang Service Metadata
-  description: Edge gateway xử lý OIDC login, token exchange và permission resolution cho toàn bộ platform.Phượng còn ẩn bóng cây tùng, thuyền quyên chỉ đợi anh hùng mà thôi  # optional -> service.description
+  description: Edge gateway xử lý OIDC login, token exchange và permission resolution cho toàn bộ platform.chu ma lay ca # optional -> service.description
 
   owners:
     members:                         # require >=1 techlead -> service_member
@@ -103,4 +103,4 @@ spec:
       reason: Nhận yêu cầu sync permission từ IDP outbox dispatcher (idp-core-consumer)
     - ref: consumesFrom:platform/platform.user-lifecycle
       protocol: kafka
-      reason: Nhận event user joiner/mover/leaver để cập nhật quyền tự động.
+      reason: Nhận event user joiner/mover/leaver để cập nhật quyền tự động

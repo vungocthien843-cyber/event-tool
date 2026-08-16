@@ -2,7 +2,9 @@ import httpx
 from arq import Retry
 from datetime import datetime
 from src.core.database import async_session_maker
-from src.services.github import fetch_file_content, GitHubClientError
+from src.models.domain import Service
+from sqlalchemy import select
+from src.services.github import fetch_file_content, fetch_repo_tree, GitHubClientError
 from src.services.catalog import process_catalog_upsert, process_catalog_removal
 
 async def job_process_catalog(ctx, repo_full_name: str, file_path: str, commit_sha: str, commit_ts: datetime):
@@ -35,3 +37,42 @@ async def job_remove_catalog(ctx, repo_full_name: str, file_path: str):
     print(f"[Worker] Removing {file_path} from DB...")
     async with async_session_maker() as session:
         await process_catalog_removal(session, repo_full_name=repo_full_name, file_path=file_path)
+
+async def job_full_sync(ctx, repo_full_name: str, commit_sha: str, commit_ts: datetime):
+    client: httpx.AsyncClient = ctx.get("httpx_client")
+    print(f"\n[Worker] 🚀 BẮT ĐẦU FULL SYNC CHO REPO: {repo_full_name}")
+    
+    # 1. Lấy cây thư mục từ GitHub (master branch)
+    print("[Worker] Fetching Git Tree...")
+    try:
+        git_files = await fetch_repo_tree(client, repo_full_name, "master")
+    except Exception as e:
+        print(f"[Worker] Failed to fetch git tree: {e}")
+        raise Retry(defer=10)
+        
+    print(f"[Worker] Tìm thấy {len(git_files)} file YAML trên GitHub.")
+    
+    # 2. Lấy danh sách file hiện có trong Database
+    print("[Worker] Fetching DB state...")
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Service.file_path).where(Service.repo_full_name == repo_full_name)
+        )
+        db_files = [row[0] for row in result.all()]
+        
+    print(f"[Worker] Tìm thấy {len(db_files)} file YAML trong Database.")
+    
+    # 3. Tính toán Ghost Data
+    git_files_set = set(git_files)
+    db_files_set = set(db_files)
+    ghost_files = db_files_set - git_files_set
+    
+    # 4. Xóa Ghost Data
+    for file_path in ghost_files:
+        await job_remove_catalog(ctx, repo_full_name, file_path)
+        
+    # 5. Cập nhật các file trên Git
+    for file_path in git_files:
+        await job_process_catalog(ctx, repo_full_name, file_path, commit_sha, commit_ts)
+        
+    print(f"[Worker] ✅ HOÀN THÀNH FULL SYNC CHO REPO: {repo_full_name}\n")

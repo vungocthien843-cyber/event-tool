@@ -15,18 +15,7 @@ def _verify_signature(secret: str, body: bytes, signature_header: str | None) ->
     provided = signature_header.removeprefix("sha256=")
     return hmac.compare_digest(expected, provided)
 
-def _collect_catalog_paths(payload: GitHubPushPayload) -> tuple[list[str], list[str]]:
-    upsert_paths: dict[str, bool] = {}
-    for commit in payload.commits:
-        for path in commit.added + commit.modified:
-            if path.endswith(".yaml") or path.endswith(".yml"):
-                upsert_paths[path] = True
-        for path in commit.removed:
-            if path.endswith(".yaml") or path.endswith(".yml"):
-                upsert_paths[path] = False
-    added_or_modified = [p for p, keep in upsert_paths.items() if keep]
-    removed = [p for p, keep in upsert_paths.items() if not keep]
-    return added_or_modified, removed
+# Bỏ hàm _collect_catalog_paths vì không cần phân tích từng commit nữa
 
 @router.post("/v1/test_api")
 async def github_webhook(request: Request):
@@ -50,25 +39,22 @@ async def github_webhook(request: Request):
     if payload.head_commit is None:
         return JSONResponse(status_code=202, content={"status": "no head_commit"})
 
-    added_or_modified, removed = _collect_catalog_paths(payload)
-    print(f"Webhook received. Added/Modified: {added_or_modified}, Removed: {removed}")
+    if payload.ref not in ["refs/heads/master", "refs/heads/main"]:
+        return JSONResponse(status_code=202, content={"status": "ignored", "reason": "not master/main branch"})
+
     repo_full_name = payload.repository.full_name
     commit_sha = payload.head_commit.id
     commit_ts = payload.head_commit.timestamp
 
-    # Lấy đối tượng kết nối Redis (được khởi tạo ở lifespan)
+    # Lấy đối tượng kết nối Redis
     redis = request.app.state.redis
 
-    # Đẩy tác vụ xóa file vào hàng đợi (Queue)
-    for file_path in removed:
-        await redis.enqueue_job("job_remove_catalog", repo_full_name, file_path)
+    # Đẩy tác vụ Full Sync vào hàng đợi (Queue)
+    await redis.enqueue_job("job_full_sync", repo_full_name, commit_sha, commit_ts)
+    print(f"Enqueued job_full_sync for {repo_full_name} at commit {commit_sha}")
 
-    # Đẩy tác vụ tải và cập nhật file vào hàng đợi
-    for file_path in added_or_modified:
-        await redis.enqueue_job("job_process_catalog", repo_full_name, file_path, commit_sha, commit_ts)
-
-    # Lập tức trả về 200 OK cho GitHub (thời gian xử lý dưới 50 mili-giây)
+    # Lập tức trả về 200 OK cho GitHub
     return JSONResponse(
         status_code=200, 
-        content={"status": "success", "jobs_enqueued": len(removed) + len(added_or_modified)}
+        content={"status": "success", "jobs_enqueued": 1}
     )

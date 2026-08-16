@@ -2,7 +2,7 @@ import httpx
 from arq.connections import RedisSettings
 from urllib.parse import urlparse
 from src.core.config import settings
-from src.worker.tasks import job_process_catalog, job_remove_catalog
+from src.worker.tasks import job_full_sync
 
 # Khởi tạo cấu hình Redis từ chuỗi kết nối
 redis_settings = RedisSettings.from_dsn(settings.redis_url)
@@ -19,7 +19,7 @@ async def shutdown(ctx):
 
 class WorkerSettings:
     redis_settings = redis_settings
-    functions = [job_process_catalog, job_remove_catalog]
+    functions = [job_full_sync]
     on_startup = startup
     on_shutdown = shutdown
     max_jobs = 10  # Tối ưu cho Neon Postgres để tránh nghẽn Connection Pool
