@@ -29,7 +29,7 @@ spec:
   name: IAM Gateway                  # require -> service.name
 
   # description — mô tả ngắn, hiển thị trang Service Metadata
-  description: Edge gateway xử lý OIDC login, token exchange và permission resolution cho toàn bộ platform  # optional -> service.description
+  description: Edge gateway xử lý OIDC login, token exchange và permission resolution cho toàn bộ platform.cÓ CÁI LON DMM  # optional -> service.description
 
   owners:
     members:                         # require >=1 techlead -> service_member
