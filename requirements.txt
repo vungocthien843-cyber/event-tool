@@ -5,3 +5,5 @@ psycopg2-binary
 pydantic-settings
 pyyaml
 httpx
+arq
+redis

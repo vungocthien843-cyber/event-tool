@@ -1,19 +1,12 @@
 import hashlib
 import hmac
-import httpx
 from pathlib import PurePosixPath
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from src.core.config import settings
-from src.core.database import async_session_maker
 from src.models.schemas import GitHubPushPayload
-from src.services.github import fetch_file_content, GitHubClientError
-from src.services.catalog import process_catalog_upsert, process_catalog_removal
 
 router = APIRouter()
-
-import hashlib
-import hmac
 
 def _verify_signature(secret: str, body: bytes, signature_header: str | None) -> bool:
     if not signature_header or not signature_header.startswith("sha256="):
@@ -63,34 +56,19 @@ async def github_webhook(request: Request):
     commit_sha = payload.head_commit.id
     commit_ts = payload.head_commit.timestamp
 
-    # Synchronous processing for Serverless environment
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        for file_path in removed:
-            print(f"Removing {file_path} from DB...")
-            async with async_session_maker() as session:
-                await process_catalog_removal(session, repo_full_name=repo_full_name, file_path=file_path)
+    # Lấy đối tượng kết nối Redis (được khởi tạo ở lifespan)
+    redis = request.app.state.redis
 
-        for file_path in added_or_modified:
-            print(f"Fetching {file_path} from GitHub...")
-            try:
-                content = await fetch_file_content(client, repo_full_name=repo_full_name, file_path=file_path, ref=commit_sha)
-                print(f"Successfully fetched {len(content)} bytes.")
-            except GitHubClientError as e:
-                print(f"Failed to fetch {file_path}: {e}")
-                continue
-            except Exception as e:
-                print(f"Unexpected error fetching {file_path}: {e}")
-                continue
-            
-            print(f"Upserting {file_path} to DB...")
-            async with async_session_maker() as session:
-                res = await process_catalog_upsert(
-                    session, repo_full_name=repo_full_name, file_path=file_path,
-                    commit_sha=commit_sha, commit_ts=commit_ts, raw_yaml=content
-                )
-                if res:
-                    print(f"Successfully upserted {res} to DB!")
-                else:
-                    print(f"Skipped DB upsert (Invalid YAML format or stale event)")
+    # Đẩy tác vụ xóa file vào hàng đợi (Queue)
+    for file_path in removed:
+        await redis.enqueue_job("job_remove_catalog", repo_full_name, file_path)
 
-    return JSONResponse(status_code=200, content={"status": "success"})
+    # Đẩy tác vụ tải và cập nhật file vào hàng đợi
+    for file_path in added_or_modified:
+        await redis.enqueue_job("job_process_catalog", repo_full_name, file_path, commit_sha, commit_ts)
+
+    # Lập tức trả về 200 OK cho GitHub (thời gian xử lý dưới 50 mili-giây)
+    return JSONResponse(
+        status_code=200, 
+        content={"status": "success", "jobs_enqueued": len(removed) + len(added_or_modified)}
+    )

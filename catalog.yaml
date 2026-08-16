@@ -1,149 +1,108 @@
-# docs/idp/idp-core-admin/catalog-info.yaml
-# IDP Core Admin API — giao diện portal dành cho Platform/DevOps team
-# Các chức năng: catalog, spec review, lifecycle, release, IAM publish, audit
+# docs/vsf-payment/payment-transaction-api/catalog-info.yaml
+# Payment Transaction API — core service xử lý giao dịch thanh toán & hoàn tiền
+# Chức năng: authorize, capture, refund, settlement, ledger posting, fraud check
 # ─────────────────────────────────────────────────────────────────────────────
 
-# specVersion — phiên bản schema của IDP catalog declaration.
-# Giá trị cố định: vsf-idp.io/v2
+# specVersion — phiên bản schema của IDP catalog declaration. Cố định: vsf-idp.io/v2
 specVersion: vsf-idp.io/v2
 
 metadata:
-  # domain — tên domain nghiệp vụ / P&L chủ quản component này. Free-text, do Biz đặt.
-  # Cho phép: spaces, chữ hoa, ký tự đặc biệt printable. Tối đa 128 ký tự. KHÔNG có control characters.
-  # Dùng làm label phân loại trên Portal (không tham gia vào service_key hay permission code).
-  # Ví dụ: "Platform Engineering" | "Payment & Loyalty" | "Identity"
-  domain: platform  # require. -> table: service.domain_code (VARCHAR 128)
+  # domain — free-text, P&L chủ quản. Tối đa 128 ký tự, không control chars.
+  domain: "Payment & Loyalty"        # require -> service.domain_code (VARCHAR 128)
 
-  # system — hệ thống (bounded context) mà component thuộc về.
-  # Kết hợp với spec.id tạo thành service_key = "{system}.{spec.id}" — định danh bất biến.
-  # Format: ^[a-z][a-z0-9-]*$  — bắt đầu bằng chữ thường, chỉ gồm [a-z0-9-]. KHÔNG có spaces/chữ hoa.
-  # Ví dụ: idp-core | iam | vsf-payment
-  system: idp-core  # require. -> table: service.system_code
+  # system — bounded context. Kết hợp spec.id -> service_key = "{system}.{id}".
+  # Format: ^[a-z][a-z0-9-]*$
+  system: vsf-payment                # require -> service.system_code
 
-  # namespace — K8s / IAM namespace scope của component.
-  # Dùng làm segment đầu của permission code: "{namespace}.{service_id}.{resource}.{action}.perm".
-  # Format: ^[a-z][a-z0-9-]*$  — bắt đầu bằng chữ thường, chỉ gồm [a-z0-9-]. KHÔNG có spaces/chữ hoa.
-  # Ví dụ: idp | iam | commerce
-  namespace: idp  # require -> table: service.namespace
+  # namespace — K8s/IAM namespace scope. Format: ^[a-z][a-z0-9-]*$
+  namespace: payment                 # require -> service.namespace
 
 spec:
-  # type — loại component khai báo.
-  #
-  # Có API surface → trigger spec ingest + review workflow:
-  #   service       → binary HTTP/gRPC API            (cần registry.yaml + openapi.yaml)
-  #   gateway       → BFF hoặc API gateway layer      (cần registry.yaml + openapi.yaml)
-  #
-  # Không có API surface → chỉ track trong catalog:
-  #   worker        → background consumer/scheduler   (chỉ catalog-info.yaml)
-  #   batch         → one-shot/cron job               (chỉ catalog-info.yaml)
-  #   job           → alias của batch (Backstage compat)  (chỉ catalog-info.yaml)
-  #   library       → shared library/SDK dùng lại     (chỉ catalog-info.yaml)
-  #   website       → frontend web app / SPA           (chỉ catalog-info.yaml)
-  #   mobile-app    → ứng dụng di động iOS/Android     (chỉ catalog-info.yaml)
-  #   data-pipeline → ETL / CDC / stream pipeline      (chỉ catalog-info.yaml)
-  #   function      → serverless function              (chỉ catalog-info.yaml)
-  #   plugin        → plugin hoặc module mở rộng       (chỉ catalog-info.yaml)
-  #   tool          → công cụ nội bộ / CLI             (chỉ catalog-info.yaml)
-  #   documentation → trang tài liệu / docs site       (chỉ catalog-info.yaml)
-  #   other         → loại chưa được chuẩn hóa         (chỉ catalog-info.yaml)
-  type: service   # require -> table: service.service_type
+  # type — service = binary HTTP/gRPC API (cần registry.yaml + openapi.yaml)
+  type: service                      # require -> service.service_type
 
-  # id — định danh duy nhất của component trong system.
-  # Kết hợp với metadata.system tạo thành service_key = "{system}.{id}".
-  # Format: ^[a-z][a-z0-9-]*$  — bắt đầu bằng chữ thường, chỉ gồm [a-z0-9-]. KHÔNG có spaces/chữ hoa.
-  # Phải nhất quán với field service trong registry.yaml.
-  id: idp-core-admin  # require -> table: service.service_key ({system}.{id})
+  # id — duy nhất trong system. service_key = vsf-payment.payment-transaction-api
+  # Format: ^[a-z][a-z0-9-]*$
+  id: payment-transaction-api        # require -> service.service_key ({system}.{id})
 
-  # name — tên hiển thị trên IDP Portal (human-readable, free-text).
-  # Cho phép: spaces, chữ hoa, ký tự đặc biệt. KHÔNG được chứa control characters (U+0000–001F, DEL).
-  name: IDP Core Admin API  # require -> table: service.name
+  # name — hiển thị trên Portal (free-text, không control chars)
+  name: Payment Transaction API      # require -> service.name
 
-  # description — mô tả ngắn về component, hiển thị trên trang Service Metadata trong Portal.
-  # Tuỳ chọn, không bắt buộc.
-  description: IDP Core Admin API - portal for Platform/DevOps team  # optional -> table: service.description
+  # description — mô tả ngắn, hiển thị trang Service Metadata
+  description: Core service xử lý authorize/capture/refund và ghi sổ ledger kép cho toàn bộ luồng thanh toán VSF  # optional -> service.description
 
   owners:
-    members:  # require at least 1 member techlead -> table: service_member
-      # user  — email VinSmart của người sở hữu.
-      # role  — vai trò trong team:
-      #   techlead   → tech lead / primary owner, người quyết định kiến trúc
-      #   maintainer → người maintain code/on-call, nhận alert
-      #   member → đóng góp nhưng không chịu trách nhiệm on-call
-      - user: v.kiennd17@vinsmartfuture.tech
+    members:                         # require >=1 techlead -> service_member
+      # role: techlead | maintainer | member
+      - user: v.longpt42@vinsmartfuture.tech
         role: techlead
-      - user: v.hadt191@vinsmartfuture.tech
+      - user: v.huongnt88@vinsmartfuture.tech
         role: techlead
-      - user: v.daonq2@vinsmartfuture.tech
-        role: techlead
-      - user: v.tiennq16@vinsmartfuture.tech
+      - user: v.baonh7@vinsmartfuture.tech
+        role: maintainer
+      - user: v.chaultt3@vinsmartfuture.tech
+        role: maintainer
+      - user: v.duongvm21@vinsmartfuture.tech
         role: member
-  # review — cấu hình spec-review merge gate cho API của component này.
-  # branch: nhánh đích (destination/target branch) mà merge request phải qua IDP
-  #   spec review + approve trước khi merge. Ở MR mode, ingest TỪ CHỐI (422) nếu
-  #   target_branch của MR khác giá trị này — BỔ SUNG cho kiểm tra "branch đích là
-  #   protected" lấy từ OIDC id token; CẢ HAI phải đúng. Khớp tên nhánh chính xác.
+      - user: v.anhntn15@vinsmartfuture.tech
+        role: member
+
+  # review — spec-review merge gate. branch: nhánh đích MR phải qua review.
   review:
-    branch: "main"  # require để validate merge request
+    branch: "main"                   # require để validate merge request
 
-  # topology — danh sách phụ thuộc của component này. IDP Portal dùng để render
-  # dependency graph và bảng UPSTREAM / DOWNSTREAM trong tab Dependencies.
-  #
-  # Mỗi entry là object với các field:
-  #   ref      (bắt buộc) — "{kind}:{namespace}/{name}"
-  #   protocol (tuỳ chọn) — giao thức giao tiếp: REST | gRPC | Kafka | WebSocket | …
-  #   reason   (tuỳ chọn) — mô tả ngắn lý do phụ thuộc, hiển thị cột REASON trên Portal
-  #
-  # Các kind được hỗ trợ trong ref:
-  #   system:        — system mà component NÀY thuộc về → sinh quan hệ partOf / hasPart trên graph (direction: partOf)
-  #   resource:      — tài nguyên hạ tầng (database, queue, bucket, secret-store…) (direction: partOf)
-  #   component:     — component khác trong IDP (service, worker, gateway…)  (direction: partOf)
-  #   providesApis:  — API mà component NÀY expose ra ngoài (khai báo trong registry.yaml) (direction: upstream)
-  #   consumesApis:  — API của service khác mà component NÀY gọi vào (direction: downstream)
-  #   publishesTo:   — Kafka topic mà component NÀY publish event vào (direction: downstream)
-  #   consumesFrom:  — Kafka topic mà component NÀY consume event từ  (direction: upstream)
-  #
-  # Namespace trong ref phải khớp với namespace của component/resource được tham chiếu,
-  # không nhất thiết phải là namespace của service hiện tại.
-  topology:   # optional, table -> service_dependency
-    # ── Membership ───────────────────────────────────────────────────────────
-    # partOf — khai báo component này thuộc system nào.
-    # IDP Portal dùng để vẽ cạnh hasPart (system → component) / partOf (component → system)
-    # trên Relations graph. Phải khớp với metadata.system ở trên.
-    - n: ref: system:idp/idp-core  #table -> service_dependency.targer_ref
-      reasoComponent này là một phần của system idp-core    # table -> service_dependency.reason
+  # topology — dependency graph. ref = "{kind}:{namespace}/{name}"
+  topology:                          # optional -> service_dependency
+    # ── Membership (direction: partOf) ──────────────────────────────────────
+    - ref: system:vsf-payment/vsf-payment   # table -> service_dependency.target_ref
+      reason: Component này là một phần của system vsf-payment   # -> service_dependency.reason
 
-    # ── Sibling components ────────────────────────────────────────────────────
-    - ref: component:idp/idp-core-integration
-      reason: Sibling CI/CD API — ghi catalog data, ingest_commit, spec_snapshot mà admin đọc để review
-    - ref: component:idp/idp-core-consumer
-      reason: Sibling consumer — nhận dispatch event từ outbox mà admin ghi, thực hiện IAM sync call
+    # ── Sibling components (direction: partOf) ──────────────────────────────
+    - ref: component:payment/payment-ledger-worker
+      reason: Worker ghi sổ kép (double-entry) — consume event capture/refund để post ledger
+    - ref: component:payment/payment-settlement-batch
+      reason: Batch settlement cuối ngày — đối soát giao dịch với ngân hàng đối tác
+    - ref: component:payment/payment-fraud-scorer
+      reason: Sidecar chấm điểm rủi ro real-time trước khi authorize giao dịch
+    - ref: component:payment/payment-refund-orchestrator
+      reason: Orchestrator điều phối luồng hoàn tiền đa bước (saga) khi capture fail
 
-    # ── Infrastructure ────────────────────────────────────────────────────────
-    - ref: resource:idp/idp-core-postgres
-      reason: Primary datastore — lưu toàn bộ catalog, review, lifecycle, audit data
+    # ── Infrastructure (direction: partOf) ──────────────────────────────────
+    - ref: resource:payment/payment-postgres
+      reason: Primary datastore — transactions, ledger_entries, idempotency_keys
+    - ref: resource:payment/payment-redis
+      reason: Idempotency cache + rate-limit token bucket cho endpoint authorize
     - ref: resource:platform/kafka
-      reason: Kafka broker — required for all publishesTo/consumesFrom topics.
+      reason: Kafka broker cho toàn bộ event thanh toán
+    - ref: resource:platform/vault
+      reason: Secret store — khóa ký HMAC webhook & credential ngân hàng đối tác
 
-    # ── APIs ──────────────────────────────────────────────────────────────────
-    - ref: providesApis:idp/idp-core-admin
-      protocol: REST   # table -> service_dependency.protocol
-      reason: OpenAPI spec của chính service này — expose lên Portal UI.
-    - ref: consumesApis:iam/iam-api
+    # ── APIs ────────────────────────────────────────────────────────────────
+    - ref: providesApis:payment/payment-transaction-api   # direction: upstream
+      protocol: REST                 # -> service_dependency.protocol
+      reason: OpenAPI spec expose lên Portal — POST /authorize /capture /refund
+    - ref: consumesApis:iam/iam-api                        # direction: downstream
       protocol: REST
-      reason: Lấy user profile
+      reason: Xác thực actor & lấy permission binding cho merchant
+    - ref: consumesApis:vsf-payment/payment-gateway-adapter
+      protocol: gRPC
+      reason: Gọi adapter tới cổng thanh toán (Napas, Visa, Mastercard)
+    - ref: consumesApis:commerce/order-api
+      protocol: REST
+      reason: Đối chiếu order amount trước khi capture để chống double-charge
 
-    # ── Kafka topics ──────────────────────────────────────────────────────────
-    # External topics — visible to other services on the platform
-    - ref: publishesTo:idp/idp.audit-events
+    # ── Kafka topics ────────────────────────────────────────────────────────
+    - ref: publishesTo:payment/payment.transaction-events # direction: downstream
       protocol: kafka
-      reason: Publish audit log events (actor, action, entity, before/after) cho downstream consumers
-    - ref: consumesFrom:iam/iam.permission-sync
+      reason: Publish event authorized/captured/refunded cho downstream (loyalty, reconciliation)
+    - ref: consumesFrom:commerce/commerce.order-created    # direction: upstream
       protocol: kafka
-      reason: Nhận thông báo khi IAM sync permission binding thành công để cập nhật trạng thái
+      reason: Nhận order mới để chuẩn bị pre-authorization
+    - ref: consumesFrom:loyalty/loyalty.points-reserved
+      protocol: kafka
+      reason: Nhận xác nhận điểm loyalty đã giữ trước khi capture
 
     # Internal dispatch topic — transactional outbox pattern.
-    # OutboxDispatcher (job chạy trong process này) scan bảng iam_sync_outbox
-    # và publish mỗi row thành một event; idp-core-consumer nhận và thực hiện IAM call.
-    - ref: publishesTo:idp/idp.iam-sync.dispatch
+    - ref: publishesTo:payment/payment.ledger.dispatch
       protocol: kafka
-      reason: Internal outbox dispatch — trigger idp-core-consumer thực hiện IAM sync call
+      reason: Internal outbox dispatch — trigger payment-ledger-worker post sổ kép

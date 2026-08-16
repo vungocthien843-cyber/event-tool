@@ -1,0 +1,106 @@
+# docs/iam/iam-gateway/catalog-info.yaml
+# IAM Gateway — BFF/edge gateway cho toàn bộ luồng xác thực & phân quyền
+# Chức năng: OIDC login, token exchange, permission resolution, session, MFA
+# ─────────────────────────────────────────────────────────────────────────────
+
+# specVersion — phiên bản schema của IDP catalog declaration. Cố định: vsf-idp.io/v2
+specVersion: vsf-idp.io/v2
+
+metadata:
+  # domain — free-text, P&L chủ quản. Tối đa 128 ký tự, không control chars.
+  domain: Identity                   # require -> service.domain_code (VARCHAR 128)
+
+  # system — bounded context. Kết hợp spec.id -> service_key = "{system}.{id}".
+  # Format: ^[a-z][a-z0-9-]*$
+  system: iam                        # require -> service.system_code
+
+  # namespace — K8s/IAM namespace scope. Format: ^[a-z][a-z0-9-]*$
+  namespace: iam                     # require -> service.namespace
+
+spec:
+  # type — gateway = BFF hoặc API gateway layer (cần registry.yaml + openapi.yaml)
+  type: gateway                      # require -> service.service_type
+
+  # id — duy nhất trong system. service_key = iam.iam-gateway
+  # Format: ^[a-z][a-z0-9-]*$
+  id: iam-gateway                    # require -> service.service_key ({system}.{id})
+
+  # name — hiển thị trên Portal (free-text, không control chars)
+  name: IAM Gateway                  # require -> service.name
+
+  # description — mô tả ngắn, hiển thị trang Service Metadata
+  description: Edge gateway xử lý OIDC login, token exchange và permission resolution cho toàn bộ platform  # optional -> service.description
+
+  owners:
+    members:                         # require >=1 techlead -> service_member
+      # role: techlead | maintainer | member
+      - user: v.sonpt9@vinsmartfuture.tech
+        role: techlead
+      - user: v.maiptt12@vinsmartfuture.tech
+        role: techlead
+      - user: v.tuanla4@vinsmartfuture.tech
+        role: maintainer
+      - user: v.hoangnv27@vinsmartfuture.tech
+        role: maintainer
+      - user: v.linhdk6@vinsmartfuture.tech
+        role: member
+      - user: v.phucnt33@vinsmartfuture.tech
+        role: member
+
+  # review — spec-review merge gate. branch: nhánh đích MR phải qua review.
+  review:
+    branch: "release/iam"            # require để validate merge request
+
+  # topology — dependency graph. ref = "{kind}:{namespace}/{name}"
+  topology:                          # optional -> service_dependency
+    # ── Membership (direction: partOf) ──────────────────────────────────────
+    - ref: system:iam/iam            # table -> service_dependency.target_ref
+      reason: Component này là một phần của system iam   # -> service_dependency.reason
+
+    # ── Sibling components (direction: partOf) ──────────────────────────────
+    - ref: component:iam/iam-api
+      reason: Core IAM service — gateway proxy tới đây để resolve permission binding
+    - ref: component:iam/iam-permission-sync-worker
+      reason: Worker đồng bộ permission binding xuống các service downstream
+    - ref: component:iam/iam-session-store
+      reason: Quản lý session & refresh token rotation, blacklist token thu hồi
+    - ref: component:iam/iam-mfa-service
+      reason: Service phát sinh & verify mã OTP/TOTP cho luồng đăng nhập MFA
+
+    # ── Infrastructure (direction: partOf) ──────────────────────────────────
+    - ref: resource:iam/iam-postgres
+      reason: Datastore — users, roles, permission_bindings, sessions
+    - ref: resource:iam/iam-redis
+      reason: Session cache + token blacklist + rate-limit login attempt
+    - ref: resource:platform/kafka
+      reason: Kafka broker cho permission-sync và audit events
+    - ref: resource:platform/vault
+      reason: Secret store — private key ký JWT (RS256) & OIDC client secret
+
+    # ── APIs ────────────────────────────────────────────────────────────────
+    - ref: providesApis:iam/iam-gateway              # direction: upstream
+      protocol: REST                 # -> service_dependency.protocol
+      reason: OpenAPI spec expose lên Portal — /login /token /introspect /authorize
+    - ref: providesApis:iam/iam-permission-check      # direction: upstream
+      protocol: gRPC
+      reason: gRPC permission-check endpoint cho service-to-service call nội bộ
+    - ref: consumesApis:iam/iam-api                   # direction: downstream
+      protocol: gRPC
+      reason: Resolve chi tiết permission binding từ core IAM service
+    - ref: consumesApis:platform/notification-api
+      protocol: REST
+      reason: Gửi mã OTP/MFA qua email & SMS
+
+    # ── Kafka topics ────────────────────────────────────────────────────────
+    - ref: publishesTo:iam/iam.permission-sync        # direction: downstream
+      protocol: kafka
+      reason: Publish event khi permission binding thay đổi để downstream đồng bộ
+    - ref: publishesTo:iam/iam.audit-events
+      protocol: kafka
+      reason: Publish login/logout/token-issued events cho audit trail
+    - ref: consumesFrom:idp/idp.iam-sync.dispatch     # direction: upstream
+      protocol: kafka
+      reason: Nhận yêu cầu sync permission từ IDP outbox dispatcher (idp-core-consumer)
+    - ref: consumesFrom:platform/platform.user-lifecycle
+      protocol: kafka
+      reason: Nhận event user joiner/mover/leaver để cập nhật quyền tự động
