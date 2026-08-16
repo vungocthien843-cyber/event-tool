@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from app.database import init_db
-from app.schemas import GitHubPushPayload
+from .database import init_db
+from .schemas import GitHubPushPayload
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
