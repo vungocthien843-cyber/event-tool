@@ -4,15 +4,8 @@ from urllib.parse import urlparse
 from src.core.config import settings
 from src.worker.tasks import job_process_catalog, job_remove_catalog
 
-# Phân tích chuỗi kết nối REDIS_URL từ cấu hình
-parsed = urlparse(settings.redis_url)
-redis_settings = RedisSettings(
-    host=parsed.hostname or 'localhost',
-    port=parsed.port or 6379,
-    database=int(parsed.path.strip('/')) if parsed.path and parsed.path.strip('/') else 0,
-    password=parsed.password,
-    ssl=parsed.scheme == 'rediss'
-)
+# Khởi tạo cấu hình Redis từ chuỗi kết nối
+redis_settings = RedisSettings.from_dsn(settings.redis_url)
 
 async def startup(ctx):
     # Mở một HTTP client dùng chung cho toàn bộ Worker
